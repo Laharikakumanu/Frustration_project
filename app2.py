@@ -5,6 +5,10 @@ import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from wordcloud import WordCloud
 
+import os 
+
+github_token = st.secrets["github_token"]
+
 st.set_page_config(page_title="Frustration Dashboard", layout="wide")
 
 # ---------- Load Data ----------
