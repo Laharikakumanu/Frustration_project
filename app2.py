@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from wordcloud import WordCloud
 import os 
 
-st.set_page_config(page_title="Sentiment Analysis Dashboard", layout="wide")
+
 
 github_token = st.secrets["github_token"]
 
