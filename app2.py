@@ -32,7 +32,7 @@ app_data = load_data()
 st.title("📊 App Review  Dashboard")
 
 # ---------- Tabs for Pages ----------
-tabs = st.tabs(["Negative Review Timeline", "Drill-Down Explorer", "Complaint Analyzer", "Complaint Radar"])
+tabs = st.tabs(["Negative Review Timeline", "Complaint Analyzer", "Complaint Radar"])
 
 # ---------- Page 1: Timeline ----------
 with tabs[0]:
@@ -80,40 +80,10 @@ with tabs[0]:
         for i, row in selected_reviews.head(3).iterrows():
             st.markdown(f"- _\"{row['content']}\"_")
 
-# ---------- Page 2: Drill-Down ----------
-with tabs[1]:
-    st.header("🔎 Drill-Down Explorer")
-    app_choice = st.selectbox("Select App", list(app_data.keys()), key="drill_app")
-    df = app_data[app_choice]
-    week_list = sorted(df["week"].dropna().unique())
-    week_choice = st.selectbox("Select Week", week_list)
 
-    filtered = df[(df["week"] == pd.to_datetime(week_choice)) & (df["sentiment"] == "NEGATIVE")]
-    st.write(f"Found {len(filtered)} negative reviews.")
-
-    if not filtered.empty:
-        texts = filtered["clean_review"].dropna().tolist()
-        vectorizer = TfidfVectorizer(max_features=10, stop_words="english")
-        X = vectorizer.fit_transform(texts)
-        keywords = vectorizer.get_feature_names_out()
-        scores = X.sum(axis=0).A1
-
-        fig, ax = plt.subplots(figsize=(10, 4))
-        ax.barh(keywords, scores, color="darkblue")
-        ax.set_title(f"Top TF-IDF Complaint Keywords – {app_choice}")
-        ax.invert_yaxis()
-        st.pyplot(fig)
-
-        wordcloud = WordCloud(width=800, height=300, background_color='white').generate(" ".join(texts))
-        st.image(wordcloud.to_array(), caption="Word Cloud of Complaints", use_column_width=True)
-
-        # Actual reviews
-        st.subheader("💬 Sample Negative Reviews")
-        for i, row in filtered.head(3).iterrows():
-            st.markdown(f"- _\"{row['content']}\"_")
 
 # ---------- Page 3: Complaint Analyzer ----------
-with tabs[2]:
+with tabs[1]:
     st.header("🔧 Complaint Analyzer")
     st.markdown("""
 This page classifies complaints into common types:
@@ -150,7 +120,7 @@ This page classifies complaints into common types:
 
 # ---------- Page 4: Complaint Radar Chart ----------
 # ---------- Page 4: Complaint Radar Chart ----------
-with tabs[3]:
+with tabs[2]:
     st.header("📍 Complaint Radar Chart")
 
     app_choice = st.selectbox("Select App", list(app_data.keys()), key="radar_app")
