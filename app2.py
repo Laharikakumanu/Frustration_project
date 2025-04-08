@@ -4,8 +4,9 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from wordcloud import WordCloud
-
 import os 
+
+st.set_page_config(page_title="Sentiment Analysis Dashboard", layout="wide")
 
 github_token = st.secrets["github_token"]
 
@@ -28,14 +29,14 @@ def load_data():
 
 app_data = load_data()
 
-st.title("📊 App Review Frustration Dashboard")
+st.title("📊 App Review  Dashboard")
 
 # ---------- Tabs for Pages ----------
-tabs = st.tabs(["Frustration Timeline", "Drill-Down Explorer", "Complaint Analyzer", "Multi-App Comparison"])
+tabs = st.tabs(["Negative Review Timeline", "Drill-Down Explorer", "Complaint Analyzer", "Complaint Radar"])
 
 # ---------- Page 1: Timeline ----------
 with tabs[0]:
-    st.header("📈 Weekly Frustration Timeline")
+    st.header("📈 Weekly Negative Review Timeline")
     app_choice = st.selectbox("Choose App", list(app_data.keys()))
     df = app_data[app_choice]
     weekly = df.groupby("week")["sentiment"].value_counts().unstack().fillna(0)
@@ -115,20 +116,25 @@ with tabs[1]:
 with tabs[2]:
     st.header("🔧 Complaint Analyzer")
     st.markdown("""
-    This page classifies complaints into common types:
-    - **UI Issues**: layout, screen, design, text, navigation
-    - **Performance**: slow, lag, freeze, delay, load
-    - **Bugs / Crashes**: crash, error, fail, broken
-    - **Other**: pricing, login, notifications, ads
-    """)
+This page classifies complaints into common types:
+
+- **UI**: `layout`, `screen`, `design`, `text`, `navigation`  
+- **Performance**: `slow`, `lag`, `freeze`, `delay`, `load`  
+- **Crashes**: `crash`, `error`, `fail`, `broken`  
+- **Features**: `feature`, `function`, `option`, `customize`, `tool`  
+- **Privacy/Security**: `privacy`, `security`, `data`, `permission`, `track`
+""")
+
     app_choice = st.selectbox("Choose App for Complaint Categories", list(app_data.keys()), key="cat_app")
     df = app_data[app_choice]
     keyword_map = {
-        "UI": ["layout", "screen", "design", "text", "navigation"],
-        "Performance": ["slow", "lag", "freeze", "delay", "load"],
-        "Crashes": ["crash", "error", "fail", "broken"],
-        "Other": ["pricing", "login", "notification", "ads"]
-    }
+    "UI": ["layout", "screen", "design", "text", "navigation"],
+    "Performance": ["slow", "lag", "freeze", "delay", "load"],
+    "Crashes": ["crash", "error", "fail", "broken"],
+    "Features": ["feature", "function", "option", "customize", "tool"],
+    "Privacy/Security": ["privacy", "security", "data", "permission", "track"]
+}
+
 
     df["complaint_type"] = "Uncategorized"
     for category, keywords in keyword_map.items():
@@ -142,20 +148,93 @@ with tabs[2]:
     fig.update_layout(barmode="stack", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------- Page 4: Multi-App Comparison ----------
+# ---------- Page 4: Complaint Radar Chart ----------
+# ---------- Page 4: Complaint Radar Chart ----------
 with tabs[3]:
-    st.header("📊 Multi-App Frustration Comparison")
-    df_all = []
-    for app, df in app_data.items():
-        weekly = df.groupby("week")["sentiment"].value_counts().unstack().fillna(0)
-        weekly["neg_percent"] = (weekly.get("NEGATIVE", 0) / weekly.sum(axis=1)) * 100
-        weekly = weekly.reset_index()
-        weekly["App"] = app
-        df_all.append(weekly[["week", "neg_percent", "App"]])
-    merged = pd.concat(df_all)
+    st.header("📍 Complaint Radar Chart")
 
-    fig = px.line(merged, x="week", y="neg_percent", color="App", markers=True,
-                  title="Weekly Frustration Comparison Across Apps",
-                  labels={"neg_percent": "% Negative Reviews"})
-    fig.update_layout(template="plotly_white")
-    st.plotly_chart(fig, use_container_width=True)
+    app_choice = st.selectbox("Select App", list(app_data.keys()), key="radar_app")
+    df = app_data[app_choice]
+
+    # Date range selection
+    min_date = df["at"].min().date()
+    max_date = df["at"].max().date()
+    from_date, to_date = st.date_input("Select Date Range:", [min_date, max_date], key="radar_dates")
+
+    if from_date > to_date:
+        st.warning("⚠️ 'From' date must be before 'To' date.")
+    else:
+        # Filter and clean
+        filtered_df = df[(df["at"].dt.date >= from_date) & (df["at"].dt.date <= to_date)].copy()
+        filtered_df["clean_review"] = filtered_df["clean_review"].fillna("").str.lower()
+
+        # Expanded keyword categories
+        keyword_map = {
+            "🖥️ UI": ["layout", "layouts", "screen", "screens", "design", "text", "navigation", "navigate"],
+            "🚀 Performance": ["slow", "slowness", "lag", "laggy", "freeze", "freezing", "delay", "delays", "load", "loading"],
+            "💥 Crashes": ["crash", "crashes", "crashing", "error", "errors", "fail", "failed", "failing", "broken"],
+            "⚙️ Features": ["feature", "features", "function", "functions", "option", "options", "customize", "tool", "tools"],
+            "🔐 Privacy/Security": ["privacy", "secure", "security", "data", "permission", "permissions", "track", "tracking"]
+        }
+
+        # Categorize reviews
+        filtered_df["complaint_type"] = "📦 Others"
+        for category, keywords in keyword_map.items():
+            mask = filtered_df["clean_review"].str.contains("|".join(keywords), case=False, na=False)
+            filtered_df.loc[mask, "complaint_type"] = category
+
+        # Prepare full category list
+        categories = list(keyword_map.keys()) + ["📦 Others"]
+        counts = filtered_df["complaint_type"].value_counts().to_dict()
+
+        # Build radar data
+        radar_data = {"Category": [], "Count": []}
+        for cat in categories:
+            radar_data["Category"].append(cat)
+            radar_data["Count"].append(counts.get(cat, 0))
+
+        radar_df = pd.DataFrame(radar_data)
+
+        # Toggle for Count or Percentage
+        view_mode = st.radio("View Mode:", ["Count", "Percentage"], horizontal=True)
+        if view_mode == "Percentage":
+            total = sum(radar_df["Count"])
+            radar_df["Count"] = [round((c / total) * 100, 2) if total > 0 else 0 for c in radar_df["Count"]]
+
+        # Plot beautiful radar chart
+        fig = px.line_polar(
+            radar_df,
+            r="Count",
+            theta="Category",
+            line_close=True,
+            title=f"{app_choice} Complaint Radar – {from_date} to {to_date}",
+            markers=False
+        )
+        fig.update_traces(
+            fill='toself',
+            line_color='royalblue'
+        )
+        fig.update_layout(
+            template="plotly_white",
+            polar=dict(
+                radialaxis=dict(
+                    visible=True,
+                    showline=True,
+                    showticklabels=True,
+                    ticks='outside'
+                )
+            )
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Debug (optional, can hide or comment out later)
+        with st.expander("🧪Sample Clean Reviews"):
+            st.write(filtered_df["clean_review"].dropna().head(10).tolist())
+
+        with st.expander("🔍 Match Breakdown"):
+            for category, keywords in keyword_map.items():
+                match_count = filtered_df["clean_review"].str.contains("|".join(keywords), case=False, na=False).sum()
+                st.write(f"{category}: {match_count} matches")
+
+        with st.expander("📋 View Data Table"):
+            st.dataframe(radar_df)
