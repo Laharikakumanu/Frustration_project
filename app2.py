@@ -153,8 +153,14 @@ with tabs[2]:
             mask = filtered_df["clean_review"].str.contains("|".join(keywords), case=False, na=False)
             filtered_df.loc[mask, "complaint_type"] = category
 
+        # Checkbox to include or exclude "📦 Others"
+        show_others = st.checkbox("Include '📦 Others' in Radar Chart", value=True)
+
         # Prepare full category list
-        categories = list(keyword_map.keys()) + ["📦 Others"]
+        categories = list(keyword_map.keys())
+        if show_others:
+            categories.append("📦 Others")
+
         counts = filtered_df["complaint_type"].value_counts().to_dict()
 
         # Build radar data
@@ -171,13 +177,17 @@ with tabs[2]:
             total = sum(radar_df["Count"])
             radar_df["Count"] = [round((c / total) * 100, 2) if total > 0 else 0 for c in radar_df["Count"]]
 
-        # Plot beautiful radar chart
+        # Radar Chart Title
+        title_suffix = " (with Others)" if show_others else ""
+        title = f"{app_choice} Complaint Radar – {from_date} to {to_date}{title_suffix}"
+
+        # Plot radar chart
         fig = px.line_polar(
             radar_df,
             r="Count",
             theta="Category",
             line_close=True,
-            title=f"{app_choice} Complaint Radar – {from_date} to {to_date}",
+            title=title,
             markers=False
         )
         fig.update_traces(
@@ -197,8 +207,7 @@ with tabs[2]:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        # Debug (optional, can hide or comment out later)
-        with st.expander("🧪Sample Clean Reviews"):
+        with st.expander("🧪 Sample Clean Reviews"):
             st.write(filtered_df["clean_review"].dropna().head(10).tolist())
 
         with st.expander("🔍 Match Breakdown"):
@@ -208,3 +217,4 @@ with tabs[2]:
 
         with st.expander("📋 View Data Table"):
             st.dataframe(radar_df)
+
